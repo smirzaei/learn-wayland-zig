@@ -1,19 +1,27 @@
 const std = @import("std");
+const Build = std.Build;
+
+const Scanner = @import("zig-wayland").Scanner;
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
 pub fn build(b: *std.Build) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
+
+    // zig-wayland stuff
+    const scanner = Scanner.create(b, .{});
+    const wayland = b.createModule(.{ .root_source_file = scanner.result });
+
+    scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
+    // scanner.addSystemProtocol("staging/ext-session-lock/ext-session-lock-v1.xml");
+
+    scanner.generate("wl_compositor", 6);
+    // scanner.generate("wl_seat", 9);
+    scanner.generate("wl_shm", 1);
+    scanner.generate("xdg_wm_base", 3);
+    // scanner.generate("ext_session_lock_manager_v1", 1);
 
     const lib = b.addStaticLibrary(.{
         .name = "zig",
@@ -35,6 +43,12 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    exe.root_module.addImport("wayland", wayland);
+    exe.linkLibC();
+    exe.linkSystemLibrary("wayland-client");
+
+    scanner.addCSource(exe);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
