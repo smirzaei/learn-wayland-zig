@@ -13,11 +13,13 @@ const posix = std.posix;
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const xdg = wayland.client.xdg;
+const zxdg = wayland.client.zxdg;
 
 const AppState = struct {
     shm: ?*wl.Shm,
     compositor: ?*wl.Compositor,
     xdgWMBase: ?*xdg.WmBase,
+    decorationManager: ?*zxdg.DecorationManagerV1,
 
     surface: ?*wl.Surface,
 };
@@ -32,6 +34,7 @@ pub fn main() anyerror!void {
         .shm = null,
         .xdgWMBase = null,
         .surface = null,
+        .decorationManager = null,
     };
 
     registry.setListener(*AppState, registryListener, &state);
@@ -40,6 +43,7 @@ pub fn main() anyerror!void {
     if (display.roundtrip() != .SUCCESS) return error.RoundtripFailure;
     const compositor = state.compositor orelse return error.NoCompositor;
     const xdg_wm_base = state.xdgWMBase orelse return error.NoXdgWmBase;
+    const decoration_manager = state.decorationManager orelse return error.NoDecorationManager;
     xdg_wm_base.setListener(*AppState, xdgWmBaseListener, &state); // TODO: find a way to pass void or null
 
     const surface = try compositor.createSurface();
@@ -50,6 +54,10 @@ pub fn main() anyerror!void {
 
     const top_level = try xdg_surface.getToplevel();
     top_level.setTitle("Hello, world!");
+
+    const decoration = try decoration_manager.getToplevelDecoration(top_level);
+    decoration.setMode(.server_side);
+
     surface.commit();
 
     log.info("waiting at the event loop\n", .{});
@@ -144,6 +152,8 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, ctx: *AppS
                 ctx.shm = registry.bind(global.name, wl.Shm, global.version) catch return;
             } else if (mem.orderZ(u8, global.interface, xdg.WmBase.getInterface().name) == .eq) {
                 ctx.xdgWMBase = registry.bind(global.name, xdg.WmBase, global.version) catch return;
+            } else if (mem.orderZ(u8, global.interface, zxdg.DecorationManagerV1.getInterface().name) == .eq) {
+                ctx.decorationManager = registry.bind(global.name, zxdg.DecorationManagerV1, 1) catch return;
             }
         },
         .global_remove => |id| {
