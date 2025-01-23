@@ -14,9 +14,6 @@ pub const std_options = .{
 
 const log = std.log;
 
-// How can I pass null to *anyopaque instead of creating this?
-const Junk = struct {};
-
 pub fn main() anyerror!void {
     const display = try wl.Display.connect(null);
     defer display.disconnect();
@@ -24,8 +21,7 @@ pub fn main() anyerror!void {
     const registry = try display.getRegistry();
     defer registry.destroy();
 
-    var junk = Junk{};
-    registry.setListener(*Junk, registryListener, &junk);
+    registry.setListener(?*anyopaque, registryListener, null);
 
     // Wait for the server to advertise globals
     if (display.roundtrip() != .SUCCESS) return error.RoundtripFailure;
@@ -33,7 +29,7 @@ pub fn main() anyerror!void {
     try stdout_bw.flush();
 }
 
-fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, data: *Junk) void {
+fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, data: ?*anyopaque) void {
     _ = registry;
     _ = data;
 
